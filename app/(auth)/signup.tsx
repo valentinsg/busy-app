@@ -15,13 +15,22 @@ export default function SignupScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const handleSignup = async () => {
+    if (!email || !password) {
+      setError('Completa todos los campos');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       await signUp(email, password);
       router.replace('/(tabs)');
     } catch (err) {
-      setError('Failed to create account');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Error desconocido');
+      }
     } finally {
       setLoading(false);
     }
@@ -43,7 +52,7 @@ export default function SignupScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          error={error}
+          error={error ? error : undefined}
         />
         <Input
           label="Password"

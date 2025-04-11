@@ -1,7 +1,19 @@
-import { Tabs } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { router, Tabs } from 'expo-router';
 import { Chrome as Home, SquareCheck as CheckSquare, BookOpen, User } from 'lucide-react-native';
+import { useEffect } from 'react';
 
 export default function TabLayout() {
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.replace('/login');
+      }
+    };
+
+    checkSession();
+  }, []);
   return (
     <Tabs
       screenOptions={{

@@ -23,7 +23,7 @@ export default function TasksScreen() {
     }
   };
 
-  const renderRightActions = (taskId: number) => {
+  const renderRightActions = (taskId: string) => {
     return (
       <View style={styles.rightAction}>
         <Button
@@ -58,10 +58,11 @@ export default function TasksScreen() {
             key={task.id}
             entering={FadeIn}
             exiting={FadeOut}
-            layout>
+            layout={SlideOutRight}>
             <Swipeable
               renderRightActions={() => renderRightActions(task.id)}
-              onSwipeableOpen={() => deleteTask(task.id)}>
+              onSwipeableOpen={() => deleteTask(task.id)}
+            >
               <Animated.View
                 style={styles.task}
                 entering={FadeIn}

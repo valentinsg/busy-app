@@ -43,7 +43,7 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          error={error}
+          error={error ? error : undefined}
         />
         <Input
           label="Password"

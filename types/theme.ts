@@ -1,6 +1,4 @@
-import { Theme } from '@react-navigation/native';
-
-export interface CustomTheme extends Theme {
+export interface CustomTheme {
   dark: boolean;
   colors: {
     primary: string;
@@ -13,6 +11,12 @@ export interface CustomTheme extends Theme {
     success: string;
     warning: string;
     info: string;
+  };
+  fonts: {
+    regular: string;
+    medium: string;
+    bold: string;
+    heavy: string;
   };
 }
 
@@ -30,6 +34,12 @@ export const lightTheme: CustomTheme = {
     warning: '#ffcc00',
     info: '#5856d6',
   },
+  fonts: {
+    regular: 'System',
+    medium: 'System',
+    bold: 'System',
+    heavy: 'System',
+  },
 };
 
 export const darkTheme: CustomTheme = {
@@ -45,5 +55,11 @@ export const darkTheme: CustomTheme = {
     success: '#32d74b',
     warning: '#ffd60a',
     info: '#5e5ce6',
+  },
+  fonts: {
+    regular: 'System',
+    medium: 'System',
+    bold: 'System',
+    heavy: 'System',
   },
 };

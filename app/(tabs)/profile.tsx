@@ -3,6 +3,7 @@ import { Settings, Bell, Moon, LogOut } from 'lucide-react-native';
 import { AnimatedView } from '../../components/AnimatedView';
 import { Button } from '../../components/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { router } from 'expo-router';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -14,6 +15,7 @@ export default function ProfileScreen() {
           variant="secondary"
           title={user?.email || 'user@example.com'}
           icon={<Settings size={24} color="#333" />}
+          onPress={() => { }}
         />
       </AnimatedView>
 
@@ -22,18 +24,21 @@ export default function ProfileScreen() {
           variant="secondary"
           title="Settings"
           icon={<Settings size={24} color="#333" />}
+          onPress={() => { }}
         />
 
         <Button
           variant="secondary"
           title="Notifications"
           icon={<Bell size={24} color="#333" />}
+          onPress={() => { }}
         />
 
         <Button
           variant="secondary"
           title="Dark Mode"
           icon={<Moon size={24} color="#333" />}
+          onPress={() => { }}
         />
       </AnimatedView>
 
@@ -42,7 +47,10 @@ export default function ProfileScreen() {
           variant="danger"
           title="Logout"
           icon={<LogOut size={24} color="#fff" />}
-          onPress={signOut}
+          onPress={async () => {
+            await signOut();
+            router.replace('/(auth)/login'); // o a donde sea tu login
+          }}
         />
       </AnimatedView>
     </View>

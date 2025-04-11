@@ -1,47 +1,83 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { User } from '../types/supabase';
+import { User } from '@supabase/supabase-js';
 
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+interface AuthUser extends User {
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
+export const useAuth = () => {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // Cargar sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      setUserWithMetadata(session?.user || null);
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // Escuchar cambios
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      setUserWithMetadata(session?.user || null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+  const setUserWithMetadata = (userData: User | null) => {
+    if (userData) {
+      const enriched = {
+        ...userData,
+        name: userData.user_metadata?.name || '',
+        email: userData.email || '',
+        avatar_url: userData.user_metadata?.avatar_url || ''
+      };
+      setUser(enriched);
+    } else {
+      setUser(null);
+    }
   };
 
+  const signUp = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      if (error.message.includes('User already registered')) {
+        throw new Error('Este email ya está registrado');
+      }
+      throw error;
+    }
+
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+
+    const newUser = userData.user;
+    if (newUser) {
+      await supabase.from('users').insert({
+        id: newUser.id,
+        email: newUser.email,
+        name: null,
+        avatar_url: null,
+      });
+    }
+  };
+
+
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setUser(null);
   };
-
   return {
     user,
     loading,
@@ -49,4 +85,4 @@ export function useAuth() {
     signIn,
     signOut,
   };
-}
+};

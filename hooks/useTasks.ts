@@ -1,88 +1,92 @@
-import { useState, useCallback } from 'react';
-import { Task, TaskPriority } from '../types/task';
+import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { Database } from '../types/schema';
 
-export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: 'Review project proposal',
-      description: 'Go through the latest project proposal and provide feedback',
-      completed: true,
-      due_date: new Date().toISOString(),
-      scheduled_time: '10:00',
-      priority: 'high',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      title: 'Team meeting',
-      description: 'Weekly sync with the development team',
-      completed: false,
-      due_date: new Date().toISOString(),
-      scheduled_time: '14:00',
-      priority: 'medium',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ]);
+type Task = Database['public']['Tables']['tasks']['Row'];
+type NewTask = Database['public']['Tables']['tasks']['Insert'];
 
-  const addTask = useCallback((
-    title: string,
-    description?: string,
-    due_date?: string,
-    scheduled_time?: string,
-    priority: TaskPriority = 'medium'
-  ) => {
-    const newTask: Task = {
-      id: tasks.length + 1,
-      title,
-      description,
-      completed: false,
-      due_date,
-      scheduled_time,
-      priority,
-      user_id: '1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+export const useTasks = () => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Traer usuario actual
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUserId(data.user.id);
+        fetchTasks(data.user.id);
+      }
     };
-    setTasks(prev => [...prev, newTask]);
-  }, [tasks]);
 
-  const updateTask = useCallback((
-    id: number,
-    updates: Partial<Task>
-  ) => {
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === id
-          ? { ...task, ...updates, updated_at: new Date().toISOString() }
-          : task
-      )
-    );
+    fetchUser();
   }, []);
 
-  const toggleTask = useCallback((id: number) => {
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === id
-          ? { ...task, completed: !task.completed, updated_at: new Date().toISOString() }
-          : task
-      )
-    );
-  }, []);
+  const fetchTasks = async (user_id: string) => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', user_id)
+      .order('created_at', { ascending: true });
 
-  const deleteTask = useCallback((id: number) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
-  }, []);
+    if (error) console.error('Error cargando tareas:', error.message);
+    else setTasks(data || []);
+  };
+
+  const addTask = async (title: string) => {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert<NewTask>({
+        id: crypto.randomUUID(),
+        title,
+        completed: false,
+        user_id: userId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creando tarea:', error.message);
+    } else if (data) {
+      setTasks(prev => [...prev, data]);
+    }
+  };
+
+  const toggleTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ completed: !task.completed })
+      .eq('id', taskId)
+      .select()
+      .single();
+
+    if (error) console.error('Error actualizando tarea:', error.message);
+    else {
+      setTasks(prev =>
+        prev.map(t => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+      );
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+    if (error) {
+      console.error('Error eliminando tarea:', error.message);
+    } else {
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    }
+  };
 
   return {
     tasks,
     addTask,
-    updateTask,
     toggleTask,
     deleteTask,
   };
-}
+};
