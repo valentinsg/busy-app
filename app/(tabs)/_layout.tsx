@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { router, Tabs } from 'expo-router';
-import { Chrome as Home, SquareCheck as CheckSquare, BookOpen, User } from 'lucide-react-native';
+import { Chrome as Home, SquareCheck as CheckSquare, BookOpen, User, Calendar } from 'lucide-react-native';
 import { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 
 export default function TabLayout() {
   useEffect(() => {
@@ -14,45 +15,80 @@ export default function TabLayout() {
 
     checkSession();
   }, []);
+
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
         tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopColor: '#f5f5f5',
+          backgroundColor: '#f0f0f0',
+          borderTopColor: '#555454',
+          height: 60,
         },
-        tabBarActiveTintColor: '#333',
+        tabBarActiveTintColor: '#555454',
         tabBarInactiveTintColor: '#999',
+        tabBarShowLabel: false,
+        headerStyle: {
+          backgroundColor: '#f0f0f0',
+        },
+        headerTintColor: '#555454',
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          title: 'Inicio',
+          tabBarIcon: ({ color, size }) => (
+            <View style={styles.homeIconContainer}>
+              <Home size={size} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="tasks"
         options={{
-          title: 'Tasks',
+          title: 'Tareas',
           tabBarIcon: ({ color, size }) => <CheckSquare size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendario',
+          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="journal"
         options={{
-          title: 'Journal',
+          title: 'Diario',
           tabBarIcon: ({ color, size }) => <BookOpen size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Perfil',
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  homeIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#555454',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+});

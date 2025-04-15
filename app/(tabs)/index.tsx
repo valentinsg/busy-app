@@ -1,58 +1,134 @@
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Play, CircleCheck as CheckCircle2, Sunrise } from 'lucide-react-native';
-import { AnimatedView } from '../../components/AnimatedView';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTasks } from '../../hooks/useTasks';
+import { Database } from '../../types/schema';
+import { AnimatedView } from '../../components/AnimatedView';
+import { Bell, Calendar, Clock, Tag, MoreVertical } from 'lucide-react-native';
 
-export default function HomeScreen() {
-  const { tasks, toggleTask } = useTasks();
-  
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+type Task = Database['public']['Tables']['tasks']['Row'];
+
+const PriorityBar = ({ priority }: { priority: Task['priority'] }) => {
+  const levels = {
+    low: 1,
+    medium: 2,
+    high: 3
+  };
+
+  const colors = {
+    low: '#4ECDC4',
+    medium: '#FFD166',
+    high: '#FF6B6B'
+  };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.priorityBar}>
+      {[...Array(3)].map((_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.prioritySegment,
+            { backgroundColor: i < levels[priority] ? colors[priority] : '#eee' }
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+const TimeDisplay = ({ date }: { date: string }) => {
+  if (!date) return null;
+  
+  const taskDate = new Date(date);
+  const now = new Date();
+  const isToday = taskDate.toDateString() === now.toDateString();
+  
+  return (
+    <View style={styles.timeContainer}>
+      <Clock size={16} color="#666" />
+      <Text style={styles.timeText}>
+        {taskDate.toLocaleTimeString([], { 
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true 
+        })}
+      </Text>
+      {isToday && <Bell size={16} color="#FF6B6B" />}
+    </View>
+  );
+};
+
+export default function HomeScreen() {
+  const { tasks } = useTasks();
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const upcomingTasks = tasks
+    .filter(task => !task.completed && task.due_date && new Date(task.due_date) >= today)
+    .sort((a, b) => {
+      if (!a.due_date || !b.due_date) return 0;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    })
+    .slice(0, 5);
+
+  const getDateLabel = (date: string | null) => {
+    if (!date) return 'Sin fecha';
+    const taskDate = new Date(date);
+    if (taskDate.toDateString() === today.toDateString()) return 'Hoy';
+    if (taskDate.toDateString() === tomorrow.toDateString()) return 'Mañana';
+    return taskDate.toLocaleDateString('es-ES', { 
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  return (
+    <View style={styles.container}>
       <AnimatedView animation="slide" style={styles.header}>
-        <Text style={styles.greeting}>Good morning, User!</Text>
-        <Text style={styles.date}>{today}</Text>
+        <Text style={styles.title}>Inicio</Text>
       </AnimatedView>
 
-      <AnimatedView animation="scale" delay={200}>
-        <TouchableOpacity style={styles.flowButton}>
-          <Play size={24} color="#fff" />
-          <Text style={styles.flowButtonText}>Start Busy Flow</Text>
-        </TouchableOpacity>
-      </AnimatedView>
-
-      <AnimatedView animation="fade" delay={400} style={styles.section}>
-        <Text style={styles.sectionTitle}>Today's Tasks</Text>
-        {tasks.map(task => (
-          <TouchableOpacity
-            key={task.id}
-            style={styles.task}
-            onPress={() => toggleTask(task.id)}>
-            <CheckCircle2
-              size={24}
-              color={task.completed ? '#333' : '#999'}
-              style={styles.taskIcon}
-            />
-            <Text style={[styles.taskText, task.completed && styles.taskCompleted]}>
-              {task.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </AnimatedView>
-
-      <AnimatedView animation="slide" delay={600}>
-        <TouchableOpacity style={styles.routineButton}>
-          <Sunrise size={24} color="#333" />
-          <Text style={styles.routineButtonText}>Morning Routine</Text>
-        </TouchableOpacity>
-      </AnimatedView>
-    </ScrollView>
+      <ScrollView style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Próximas tareas</Text>
+          
+          {upcomingTasks.map(task => (
+            <View key={task.id} style={styles.taskCard}>
+              <View style={styles.taskHeader}>
+                <Text style={styles.dateLabel}>{getDateLabel(task.due_date)}</Text>
+                <TouchableOpacity style={styles.moreButton}>
+                  <MoreVertical size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.taskContent}>
+                <Text style={styles.taskTitle}>{task.title}</Text>
+                
+                <View style={styles.taskMeta}>
+                  <PriorityBar priority={task.priority} />
+                  
+                  {task.scheduled_time && (
+                    <TimeDisplay date={task.scheduled_time} />
+                  )}
+                </View>
+                
+                {task.tags && task.tags.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    {task.tags.map((tag, index) => (
+                      <View key={index} style={styles.tag}>
+                        <Tag size={14} color="#666" />
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -66,70 +142,100 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     backgroundColor: '#f5f5f5',
   },
-  greeting: {
+  title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
-  date: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
-  },
-  flowButton: {
-    backgroundColor: '#333',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  flowButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  content: {
+    flex: 1,
+    padding: 16,
   },
   section: {
-    padding: 20,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 16,
   },
-  task: {
+  taskCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  taskHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#666',
+    textTransform: 'capitalize',
+  },
+  moreButton: {
+    padding: 4,
+  },
+  taskContent: {
     gap: 12,
   },
-  taskIcon: {
-    width: 24,
-  },
-  taskText: {
+  taskTitle: {
     fontSize: 16,
-    color: '#333',
-    flex: 1,
+    fontWeight: 'bold',
   },
-  taskCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#999',
+  taskMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  routineButton: {
+  priorityBar: {
+    flexDirection: 'row',
+    gap: 2,
+    backgroundColor: '#f5f5f5',
+    padding: 4,
+    borderRadius: 12,
+  },
+  prioritySegment: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
-    margin: 20,
-    padding: 20,
+    padding: 6,
+    paddingHorizontal: 10,
     borderRadius: 12,
+    gap: 6,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
-  routineButtonText: {
-    fontSize: 18,
-    color: '#333',
-    fontWeight: '500',
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 4,
+  },
+  tagText: {
+    fontSize: 12,
+    color: '#666',
   },
 });

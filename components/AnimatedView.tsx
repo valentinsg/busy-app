@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ViewProps } from 'react-native';
+import React, { useEffect, ReactNode } from 'react';
+import { ViewProps, Text } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -10,7 +10,34 @@ import Animated, {
 interface AnimatedViewProps extends ViewProps {
   animation?: 'fade' | 'slide' | 'scale';
   delay?: number;
+  children: ReactNode;
 }
+
+const wrapTextNodes = (children: ReactNode): ReactNode => {
+  if (typeof children === 'string' || typeof children === 'number') {
+    return <Text>{children}</Text>;
+  }
+
+  if (Array.isArray(children)) {
+    return children.map((child, index) => (
+      <React.Fragment key={`wrapped-text-${index}`}>
+        {wrapTextNodes(child)}
+      </React.Fragment>
+    ));
+  }
+
+  if (children && typeof children === 'object' && 'props' in children && children.props.children) {
+    return {
+      ...children,
+      props: {
+        ...children.props,
+        children: wrapTextNodes(children.props.children),
+      },
+    };
+  }
+
+  return children;
+};
 
 export function AnimatedView({
   children,
@@ -33,7 +60,6 @@ export function AnimatedView({
 
   const animatedStyle = useAnimatedStyle(() => {
     const baseStyle = { opacity: opacity.value };
-
     switch (animation) {
       case 'slide':
         return {
@@ -52,7 +78,7 @@ export function AnimatedView({
 
   return (
     <Animated.View style={[style, animatedStyle]} {...props}>
-      {children}
+      {wrapTextNodes(children)}
     </Animated.View>
   );
 }

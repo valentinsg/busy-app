@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
+import { useSupabase } from '../context/SupabaseProvider';
+import { Database } from '@/types/schema';
+import { Tag } from 'lucide-react-native';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Picker } from '@react-native-picker/picker';
-import { Database } from '../types/schema';
-import { ColorPicker } from './ColorPicker';
-import { DatePicker } from './DatePicker';
+import { DatePicker } from './DatePicker';  
 
 type Task = Database['public']['Tables']['tasks']['Row'];
 type NewTask = Omit<Task, 'id' | 'user_id' | 'created_at'>;
+type TagType = Database['public']['Tables']['tags']['Row'];
 
 interface TaskFormProps {
   initialData?: Partial<Task>;
@@ -16,44 +18,113 @@ interface TaskFormProps {
   onCancel: () => void;
 }
 
-const PRIORITY_COLORS = {
-  low: '#4cd964',
-  medium: '#ffcc00',
-  high: '#ff4444',
-};
-
 export const TaskForm = ({ initialData, onSubmit, onCancel }: TaskFormProps) => {
+  const { supabase, user } = useSupabase();
   const [title, setTitle] = useState(initialData?.title || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [priority, setPriority] = useState<Task['priority']>(initialData?.priority || 'medium');
   const [category, setCategory] = useState<Task['category']>(initialData?.category || 'other');
-  const [color, setColor] = useState(initialData?.color || PRIORITY_COLORS[priority]);
   const [dueDate, setDueDate] = useState<Date>(
     initialData?.due_date ? new Date(initialData.due_date) : new Date()
   );
   const [scheduledTime, setScheduledTime] = useState<Date>(
     initialData?.scheduled_time ? new Date(initialData.scheduled_time) : new Date()
   );
-  const [tags, setTags] = useState<string[]>(initialData?.tags || []);
-  const [newTag, setNewTag] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags || []);
+  const [availableTags, setAvailableTags] = useState<TagType[]>([]);
+  const [isTagsModalVisible, setIsTagsModalVisible] = useState(false);
+
+  useEffect(() => {
+    fetchTags();
+  }, []);
+
+  const fetchTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('name');
+
+      if (error) throw error;
+      setAvailableTags(data || []);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+    }
+  };
 
   const handleSubmit = () => {
+    const combinedDate = new Date(dueDate);
+    combinedDate.setHours(
+      scheduledTime.getHours(),
+      scheduledTime.getMinutes(),
+      scheduledTime.getSeconds()
+    );
+    
     const taskData: NewTask = {
       title,
       description: description || null,
       priority,
       category,
-      color,
-      due_date: dueDate.toISOString().split('T')[0],
-      scheduled_time: scheduledTime.toTimeString().split(' ')[0],
-      tags,
-      completed: false,
+      color: initialData?.color || null,
+      due_date: combinedDate.toISOString(),
+      scheduled_time: scheduledTime.toISOString(),
+      tags: selectedTags,
+      completed: initialData?.completed || false,
     };
+    
     onSubmit(taskData);
   };
 
+  const toggleTag = (tagName: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagName)
+        ? prev.filter(t => t !== tagName)
+        : [...prev, tagName]
+    );
+  };
+
+  const TagsModal = () => (
+    <Modal
+      visible={isTagsModalVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setIsTagsModalVisible(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Seleccionar etiquetas</Text>
+            <TouchableOpacity
+              onPress={() => setIsTagsModalVisible(false)}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.tagsGrid}>
+            {availableTags.map(tag => (
+              <TouchableOpacity
+                key={tag.id}
+                style={[
+                  styles.tagOption,
+                  selectedTags.includes(tag.name) && styles.tagOptionSelected
+                ]}
+                onPress={() => toggleTag(tag.name)}
+              >
+                <Tag size={16} color={tag.color} />
+                <Text style={styles.tagOptionText}>{tag.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <Input
         label="Título"
         value={title}
@@ -73,14 +144,11 @@ export const TaskForm = ({ initialData, onSubmit, onCancel }: TaskFormProps) => 
         <Text style={styles.label}>Prioridad</Text>
         <Picker
           selectedValue={priority}
-          onValueChange={(value) => {
-            setPriority(value as Task['priority']);
-            setColor(PRIORITY_COLORS[value as keyof typeof PRIORITY_COLORS]);
-          }}
+          onValueChange={(value) => setPriority(value as Task['priority'])}
         >
-          <Picker.Item label="Baja" value="low" color={PRIORITY_COLORS.low} />
-          <Picker.Item label="Media" value="medium" color={PRIORITY_COLORS.medium} />
-          <Picker.Item label="Alta" value="high" color={PRIORITY_COLORS.high} />
+          <Picker.Item label="Baja" value="low" />
+          <Picker.Item label="Media" value="medium" />
+          <Picker.Item label="Alta" value="high" />
         </Picker>
       </View>
 
@@ -116,52 +184,53 @@ export const TaskForm = ({ initialData, onSubmit, onCancel }: TaskFormProps) => 
         />
       </View>
 
-      <View style={styles.colorContainer}>
-        <Text style={styles.label}>Color personalizado</Text>
-        <ColorPicker
-          color={color}
-          onColorChange={setColor}
-          style={styles.colorPicker}
-        />
-      </View>
+      <View style={styles.tagsSection}>
+        <Text style={styles.label}>Etiquetas seleccionadas</Text>
+        <TouchableOpacity
+          style={styles.addTagButton}
+          onPress={() => setIsTagsModalVisible(true)}
+        >
+          <Tag size={20} color="#666" />
+          <Text style={styles.addTagButtonText}>Gestionar etiquetas</Text>
+        </TouchableOpacity>
 
-      <View style={styles.tagsContainer}>
-        <Input
-          label="Etiquetas"
-          value={newTag}
-          onChangeText={setNewTag}
-          placeholder="Agregar etiqueta"
-          onSubmitEditing={() => {
-            if (newTag.trim()) {
-              setTags([...tags, newTag.trim()]);
-              setNewTag('');
-            }
-          }}
-        />
-        <View style={styles.tagsList}>
-          {tags.map((tag, index) => (
-            <Button
-              key={index}
-              title={tag}
-              variant="secondary"
-              onPress={() => setTags(tags.filter((_, i) => i !== index))}
-            />
-          ))}
+        <View style={styles.selectedTagsContainer}>
+          {selectedTags.map((tagName, index) => {
+            const tag = availableTags.find(t => t.name === tagName);
+            return (
+              <View key={index} style={styles.selectedTag}>
+                <Tag size={16} color={tag?.color || '#666'} />
+                <Text style={styles.selectedTagText}>{tagName}</Text>
+                <TouchableOpacity
+                  onPress={() => toggleTag(tagName)}
+                  style={styles.removeTagButton}
+                >
+                  <Text style={styles.removeTagButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </View>
       </View>
+
+      <TagsModal />
 
       <View style={styles.buttonsContainer}>
         <Button title="Cancelar" onPress={onCancel} variant="secondary" />
         <Button title="Guardar" onPress={handleSubmit} />
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    gap: 16,
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  pickerContainer: {
+    marginBottom: 16,
   },
   label: {
     fontSize: 16,
@@ -169,29 +238,96 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: '#333',
   },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#e1e1e1',
-    borderRadius: 8,
+  dateContainer: {
     marginBottom: 16,
   },
-  dateContainer: {
-    gap: 8,
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  colorContainer: {
-    gap: 8,
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
   },
-  colorPicker: {
-    height: 40,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#999',
+  },
+  tagsGrid: {
+    maxHeight: 300,
+  },
+  tagOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
     borderRadius: 8,
-  },
-  tagsContainer: {
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
     gap: 8,
   },
-  tagsList: {
+  tagOptionSelected: {
+    backgroundColor: '#e0e0e0',
+  },
+  tagOptionText: {
+    fontSize: 16,
+  },
+  tagsSection: {
+    marginBottom: 16,
+  },
+  addTagButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  addTagButtonText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  selectedTagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  selectedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 6,
+  },
+  selectedTagText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  removeTagButton: {
+    padding: 2,
+  },
+  removeTagButtonText: {
+    fontSize: 14,
+    color: '#999',
   },
   buttonsContainer: {
     flexDirection: 'row',

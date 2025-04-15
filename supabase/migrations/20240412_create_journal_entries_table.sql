@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS journal_entries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), content TEXT NOT NULL, mood TEXT, tags TEXT[] DEFAULT '{}'::TEXT[], date DATE NOT NULL, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE);
